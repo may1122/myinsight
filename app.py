@@ -1,8 +1,8 @@
 
 # ============================================================
-# AYÇA Insight V5.0 Executive Demo
+# AYÇA Insight V5.1 Executive Demo
 # Eczanenin Dijital Yönetim Paneli
-# Revizyon: Demo giriş/kayıt ekranı eklendi; Kritik Merkez kartları aktif bölüm değiştirir; eski yatay bölüm menüsü korunur
+# Revizyon: Demo giriş/kayıt ekranı, kritik kart navigasyonu, sample veri saklama ve hazır sample Excel desteği eklendi
 # ------------------------------------------------------------
 # Bu app.py, kullanıcının verdiği AYÇA Excel formatına göre yazılmıştır.
 #
@@ -32,6 +32,9 @@
 # - Son 60 Gün Çıkış
 # - Stok Ay Karşılığı
 # - Sipariş Önerisi
+# Opsiyonel sample kolonları:
+# - Demo Müşteri Adı
+# - Demo Saklama No
 #
 # Çalıştırma:
 # pip install streamlit pandas numpy openpyxl plotly
@@ -43,6 +46,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 from html import escape
 from typing import Optional
 
@@ -57,7 +61,7 @@ import streamlit as st
 # STREAMLIT AYARI
 # ============================================================
 st.set_page_config(
-    page_title="AYÇA Insight V5.0",
+    page_title="AYÇA Insight V5.1",
     page_icon="💊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -482,13 +486,13 @@ DEMO_USERS = {
     "basic": {
         "password": "basic2026",
         "name": "Basic Demo Kullanıcı",
-        "pharmacy": "İdil Eczanesi",
+        "pharmacy": "AYÇA Demo Eczanesi",
         "membership": "Basic",
     },
     "premium": {
         "password": "premium2026",
         "name": "Premium Demo Kullanıcı",
-        "pharmacy": "İdil Eczanesi",
+        "pharmacy": "AYÇA Demo Eczanesi",
         "membership": "Premium",
     },
 }
@@ -1326,15 +1330,55 @@ if st.sidebar.button("Çıkış Yap", use_container_width=True):
     safe_rerun()
 
 st.sidebar.title("💊 AYÇA Insight")
-st.sidebar.caption("V5.0 Executive Demo")
+st.sidebar.caption("V5.1 Executive Demo")
 
-eczane_adi = st.sidebar.text_input("Eczane Adı", value="İdil Eczanesi")
+eczane_adi = st.sidebar.text_input("Eczane Adı", value=st.session_state.get("auth_pharmacy", "AYÇA Demo Eczanesi"))
 kullanici_adi = st.sidebar.text_input("Kullanıcı", value="Abdullah Bey")
 
 uploaded_file = st.sidebar.file_uploader(
     "AYÇA Excel dosyasını yükle",
     type=["xlsx", "xls"],
 )
+
+# ------------------------------------------------------------
+# DEMO VERİ SAKLAMA / SAMPLE DOSYA DESTEĞİ
+# ------------------------------------------------------------
+st.sidebar.markdown("---")
+st.sidebar.subheader("Demo Veri Merkezi")
+
+SAMPLE_EXCEL_NAME = "AYCA_Insight_V5_1_Sample_Demo.xlsx"
+sample_excel_path = Path(__file__).with_name(SAMPLE_EXCEL_NAME)
+use_sample_excel = st.sidebar.checkbox("Hazır sample Excel ile başlat", value=True)
+
+if uploaded_file is not None:
+    uploaded_bytes = uploaded_file.getvalue()
+    if st.sidebar.button("💾 Bu dosyayı demo olarak sakla", use_container_width=True):
+        st.session_state["saved_demo_excel_bytes"] = uploaded_bytes
+        st.session_state["saved_demo_excel_name"] = uploaded_file.name
+        st.sidebar.success("Demo veri bu oturumda saklandı.")
+
+if "saved_demo_excel_bytes" in st.session_state:
+    st.sidebar.download_button(
+        "📥 Saklanan demo veriyi indir",
+        data=st.session_state["saved_demo_excel_bytes"],
+        file_name=st.session_state.get("saved_demo_excel_name", "AYCA_Demo_Verisi.xlsx"),
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
+
+if uploaded_file is None and use_sample_excel:
+    if sample_excel_path.exists():
+        uploaded_file = sample_excel_path
+        active_demo_source = "Hazır sample Excel"
+    elif "saved_demo_excel_bytes" in st.session_state:
+        uploaded_file = BytesIO(st.session_state["saved_demo_excel_bytes"])
+        active_demo_source = "Oturumda saklanan demo Excel"
+    else:
+        active_demo_source = "Dosya bekleniyor"
+else:
+    active_demo_source = "Yüklenen Excel" if uploaded_file is not None else "Dosya bekleniyor"
+
+st.sidebar.caption(f"Aktif veri kaynağı: {active_demo_source}")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("Analiz Eşikleri")
@@ -1361,7 +1405,7 @@ if uploaded_file is None:
         """
         <div class="ayca-header">
             <div class="ayca-title">
-                <h1>AYÇA Insight V5.0</h1>
+                <h1>AYÇA Insight V5.1</h1>
                 <p>Soft dashboard · Excel yükleyerek dinamik analiz alın.</p>
             </div>
             <div class="header-pill">Dosya bekleniyor</div>
@@ -1499,7 +1543,7 @@ st.markdown(
     f"""
     <div class="ayca-header">
         <div class="ayca-title">
-            <h1>AYÇA Insight V5.0</h1>
+            <h1>AYÇA Insight V5.1</h1>
             <p>{eczane_adi} · {selected_period} · Sayfa: {active_sheet} · {today_str} · {get_membership()} Demo</p>
         </div>
         <div class="header-pill">AYÇA Skoru: {score}/100</div>
@@ -2160,9 +2204,9 @@ if st.session_state["aktif_sayfa"] == PAGE_REPORT:
     report_bytes = create_excel_report(df, product_df, critical_df, miad_df, dead_df, order_df)
 
     st.download_button(
-        label="📥 AYÇA V4.2 Analiz Raporu İndir",
+        label="📥 AYÇA V5.1 Analiz Raporu İndir",
         data=report_bytes,
-        file_name=f"AYCA_Insight_V4_2_Rapor_{datetime.now().strftime('%Y%m%d')}.xlsx",
+        file_name=f"AYCA_Insight_V5_1_Rapor_{datetime.now().strftime('%Y%m%d')}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
@@ -2171,6 +2215,10 @@ if st.session_state["aktif_sayfa"] == PAGE_REPORT:
     st.write(f"Dosyadaki sayfalar: {', '.join(sheet_names)}")
     st.write(f"Satır sayısı: **{len(df)}**")
     st.write(f"Ürün sayısı: **{len(product_df)}**")
+    st.write(f"Aktif veri kaynağı: **{active_demo_source}**")
+
+    if "saved_demo_excel_bytes" in st.session_state:
+        st.success("Bu oturumda saklanan bir demo Excel mevcut. Sol menüden tekrar indirebilirsiniz.")
 
     st.markdown("### Ham Veri Önizleme")
     st.dataframe(df.head(100), use_container_width=True, hide_index=True)
@@ -2184,6 +2232,6 @@ if st.session_state["aktif_sayfa"] == PAGE_REPORT:
 # ============================================================
 st.markdown("---")
 st.caption(
-    "AYÇA Insight V4.2 Soft · Raporları okumaz, eczanenizi yorumlar. "
+    "AYÇA Insight V5.1 Soft · Sample veriyi saklar, gerçek veriyi göstermeden eczanenizi yorumlar. "
     "Bu uygulama karar destek amaçlıdır; nihai ticari ve mesleki karar kullanıcıya aittir."
 )
